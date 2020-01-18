@@ -11,6 +11,7 @@ from yubico_client.py3 import b
 EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9.+_-]+@[a-zA-Z0-9._-]+\.[a-zA-Z]+$')
 yubi_client_id = "51542"
 yubi_secret_key = "B2Q6oZvOHQIAMxxEDVXM+XaN5D8="
+myDB = "f8x0a94mtjmenwxa"
 rand_str = b(os.urandom(30))
 nonce = base64.b64encode(rand_str, b('xz'))[:25].decode('utf-8')
 yubi_client = Yubico(yubi_client_id, yubi_secret_key)
@@ -55,6 +56,9 @@ def create():
                 yubico_exceptions.InvalidClientIdError, yubico_exceptions.InvalidValidationResponse,
                 yubico_exceptions.YubicoError) as e:
             is_valid = False
+            flash("There is an issue with your Yubikey, please try again", 'yubikey')
+        except:
+            is_valid = False
             flash("Your Yubikey is invalid, please try again", 'yubikey')
     if is_valid:
         # include some logic to validate user input before adding them to the database!
@@ -64,7 +68,7 @@ def create():
         # print(pw_hash)  
         # prints something like b'$2b$12$sqjyok5RQccl9S6eFLhEPuaRaJCcH3Esl2RWLm/cimMIEnhnLb7iC'
         # be sure you set up your database so it can store password hashes this long (60 characters)
-        mysql = connectToMySQL("yubi_login_and_reg")
+        mysql = connectToMySQL(myDB)
         query = "INSERT INTO users (first_name, last_name, email, password, yubikey, created_at, updated_at) VALUES (%(fn)s, %(ln)s, %(em)s, %(pw)s, %(yu)s, NOW(), NOW());"
         data = {
             "fn": request.form["fname"],
@@ -100,12 +104,16 @@ def on_login():
         try:
             yubi_client.verify(request.form['yubi'])
         except (yubico_exceptions.StatusCodeError, yubico_exceptions.SignatureVerificationError, yubico_exceptions.InvalidClientIdError, yubico_exceptions.InvalidValidationResponse, yubico_exceptions.YubicoError) as e:
+        # except:
+            is_valid = False
+            flash("There is an issue with your Yubikey, please try again", 'yubikey')
+        except:
             is_valid = False
             flash("Your Yubikey is invalid, please try again", 'yubikey')
 
     if is_valid:
         yubi_device_id = otp.OTP(request.form['yubi']).device_id
-        mysql = connectToMySQL("yubi_login_and_reg")
+        mysql = connectToMySQL(myDB)
         query = "SELECT user_id, email, password, yubikey FROM users WHERE email = %(em)s AND yubikey = %(yu)s"
         data = {
             "em": request.form['email'],
@@ -125,7 +133,7 @@ def on_login():
                 flash("Email/Password combo is invalid")
                 return redirect("/")
         else:
-            flash("Email is not valid")
+            flash("Email or yubikey is not valid")
             # print(user_data)
             return redirect("/")
     else:
@@ -136,7 +144,7 @@ def on_login():
 def landing():
     if 'user_id' not in session:
         return redirect("/")
-    mysql = connectToMySQL("yubi_login_and_reg")
+    mysql = connectToMySQL(myDB)
     query = "SELECT first_name FROM users WHERE user_id = %(u_id)s"
     data = {
             "u_id": session['user_id']
@@ -161,12 +169,16 @@ def yubi_update():
         try:
             yubi_client.verify(request.form['yubi'])
         except (yubico_exceptions.StatusCodeError, yubico_exceptions.SignatureVerificationError, yubico_exceptions.InvalidClientIdError, yubico_exceptions.InvalidValidationResponse, yubico_exceptions.YubicoError) as e:
+        # except:
+            is_valid = False
+            flash("There is an issue with your Yubikey, please try again", 'yubikey')
+        except:
             is_valid = False
             flash("Your Yubikey is invalid, please try again", 'yubikey')
 
     if is_valid:
         yubi_device_id = otp.OTP(request.form['yubi']).device_id
-        mysql = connectToMySQL("yubi_login_and_reg")
+        mysql = connectToMySQL(myDB)
         query = "UPDATE users SET yubikey = %(yu_id)s, updated_at = NOW() WHERE user_id = %(u_id)s"
         data = {
             "yu_id": yubi_device_id,
